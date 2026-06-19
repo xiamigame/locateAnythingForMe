@@ -205,7 +205,7 @@ class VideoLocator:
     """基于 LocateAnythingForMe 的视频/摄像头/屏幕流式检测器（纯处理，无渲染）。
 
     Usage:
-        la = LocateAnythingForMe(max_edge=1024)
+        la = LocateAnythingForMe(config=LocateConfig(max_edge=1024))
         vl = VideoLocator(la, frame_interval=2)
 
         # 视频文件目标检测

@@ -48,7 +48,7 @@ class LocateAnythingForMe(LocateAnythingWorker):
     继承官方 LocateAnythingWorker，增加图像预处理和坐标映射。
 
     使用示例:
-        la = LocateAnythingForMe(model_path="nvidia/LocateAnything-3B", max_edge=1024)
+        la = LocateAnythingForMe(config=LocateConfig(max_edge=1024))
         result = la.detect("photo.jpg", ["person", "car"])
         annotated = la.annotate("photo.jpg", result)
         annotated.save("output.jpg")
@@ -59,39 +59,30 @@ class LocateAnythingForMe(LocateAnythingWorker):
         model_path: str = "nvidia/LocateAnything-3B",
         device: str = "cuda",
         dtype=torch.bfloat16,
-        max_edge: int = 1024,
-        min_edge: Optional[int] = None,
         *,
         config: Optional["LocateConfig"] = None,
         **worker_kwargs,
     ):
         """
         Args:
-            model_path: HuggingFace 模型 ID 或本地路径。
-            device: 推理设备。
-            dtype: 模型数据类型（bfloat16 推荐）。
-            max_edge: 缩放后图像的最长边像素数（1024 适合 10GB 显存，512 更快）。
-            min_edge: 缩放后最短边的最小值（可选，避免过小的图被放大）。
-            config: LocateConfig 实例（优先于单独的参数）。
+            model_path: HuggingFace 模型 ID（config 提供时忽略）。
+            device: 推理设备（config 提供时忽略）。
+            dtype: 模型数据类型（config 提供时忽略）。
+            config: LocateConfig 实例，包含所有模型/缩放/生成参数。
             **worker_kwargs: 传给 LocateAnythingWorker 的额外参数。
         """
         from .config import LocateConfig as _LocateConfig
 
-        if config is not None:
-            self.config = config
-            self.max_edge = config.max_edge
-            self.min_edge = config.min_edge
-        else:
-            self.config = _LocateConfig(
-                max_edge=max_edge,
-                min_edge=min_edge,
-            )
-            self.max_edge = max_edge
-            self.min_edge = min_edge
+        if config is None:
+            config = _LocateConfig(model_path=model_path, device=device)
+
+        self.config = config
+        self.max_edge = config.max_edge
+        self.min_edge = config.min_edge
 
         super().__init__(
-            model_path=model_path,
-            device=device,
+            model_path=config.model_path,
+            device=config.device,
             dtype=dtype,
             **worker_kwargs,
         )
