@@ -19,10 +19,10 @@ class LocateConfig:
     min_edge: Optional[int] = None
 
     # 生成参数
-    generation_mode: str = "fast"  # "fast" | "slow" | "hybrid"
-    temperature: float = 0.0       # 0=贪心解码（最快）
-    max_new_tokens: int = 512
-    top_p: float = 1.0
+    generation_mode: str = "hybrid"  # "fast" | "slow" | "hybrid"
+    temperature: float = 0.7         # 0=贪心解码，>0 采样
+    max_new_tokens: int = 2048
+    top_p: float = 0.9
     top_k: int = 0
 
     # 批处理
