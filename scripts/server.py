@@ -22,7 +22,7 @@ _PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT))
 
 # 环境初始化
-from locate_anything import VideoLocator, LocateAnythingForMe
+from locate_anything import VideoLocator, VideoRenderer, LocateAnythingForMe
 
 from PIL import Image
 import numpy as np
@@ -66,13 +66,22 @@ def camera_stream_generator(camera_id, detect_interval, categories_str, max_edge
     la.max_edge = int(max_edge)
     categories = [c.strip() for c in categories_str.split(",") if c.strip()] or ["person"]
     vl = VideoLocator(la, frame_interval=int(detect_interval))
+    vr = VideoRenderer(vl)
 
-    for idx, ts, annotated, result in vl.detect_and_annotate_smooth(
-        camera_id, categories, detect_interval=int(detect_interval)
-    ):
-        boxes = result.get("boxes", []) if result else []
-        info = f"#{idx} {ts:.1f}s | {len(boxes)} obj"
-        yield annotated, info
+    try:
+        for idx, ts, annotated, result in vr.annotate_smooth(
+            camera_id,
+            detect_fn=lambda f: la.detect(f, categories),
+            detect_interval=int(detect_interval),
+            categories=categories,
+        ):
+            boxes = result.get("boxes", []) if result else []
+            info = f"#{idx} {ts:.1f}s | {len(boxes)} obj"
+            yield annotated, info
+    except GeneratorExit:
+        log.info("Camera stream disconnected (camera=%d)", camera_id)
+    finally:
+        log.info("Camera stream stopped (camera=%d)", camera_id)
 
 
 def screen_stream_generator(monitor, detect_interval, categories_str, max_edge):
@@ -81,13 +90,22 @@ def screen_stream_generator(monitor, detect_interval, categories_str, max_edge):
     la.max_edge = int(max_edge)
     categories = [c.strip() for c in categories_str.split(",") if c.strip()] or ["button", "icon", "text"]
     vl = VideoLocator(la, frame_interval=int(detect_interval))
+    vr = VideoRenderer(vl)
 
-    for idx, ts, annotated, result in vl.detect_and_annotate_smooth(
-        f"screen:{monitor}", categories, detect_interval=int(detect_interval)
-    ):
-        boxes = result.get("boxes", []) if result else []
-        info = f"#{idx} {ts:.1f}s | {len(boxes)} obj"
-        yield annotated, info
+    try:
+        for idx, ts, annotated, result in vr.annotate_smooth(
+            f"screen:{monitor}",
+            detect_fn=lambda f: la.detect(f, categories),
+            detect_interval=int(detect_interval),
+            categories=categories,
+        ):
+            boxes = result.get("boxes", []) if result else []
+            info = f"#{idx} {ts:.1f}s | {len(boxes)} obj"
+            yield annotated, info
+    except GeneratorExit:
+        log.info("Screen stream disconnected (monitor=%d)", monitor)
+    finally:
+        log.info("Screen stream stopped (monitor=%d)", monitor)
 
 
 # ── FastAPI ──────
@@ -194,9 +212,11 @@ async def detect_video(
     tmp.close()
 
     vl = VideoLocator(la, frame_interval=interval)
+    vr = VideoRenderer(vl)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for idx, ts, annotated, result in vl.detect_and_annotate_stream(tmp.name, cats):
+        stream = vl.stream(tmp.name, mode="detect", categories=cats)
+        for idx, ts, annotated, result in vr.annotate_stream(stream, categories=cats):
             frame_buf = io.BytesIO()
             annotated.save(frame_buf, format="JPEG", quality=85)
             zf.writestr(f"frame_{idx:06d}.jpg", frame_buf.getvalue())

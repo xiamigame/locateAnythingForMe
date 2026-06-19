@@ -16,12 +16,12 @@ from .api import LocateAnything  # 向后兼容别名
 from .config import LocateConfig, get_default_config, set_default_config
 from .video import (
     VideoLocator,
-    frame_processor,
     iter_video,
     iter_camera,
     iter_screen,
     VIDEO_EXTS,
 )
+from .rendering import VideoRenderer
 
 __version__ = "0.4.0"
 __all__ = [
@@ -32,7 +32,7 @@ __all__ = [
     "set_default_config",
     "_DEFAULT_COLORS",
     "VideoLocator",
-    "frame_processor",
+    "VideoRenderer",
     "iter_video",
     "iter_camera",
     "iter_screen",

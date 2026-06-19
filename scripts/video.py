@@ -31,7 +31,7 @@ import argparse
 import os
 import signal
 
-from locate_anything import LocateAnythingForMe, VideoLocator, LocateConfig
+from locate_anything import LocateAnythingForMe, VideoLocator, VideoRenderer, LocateConfig
 
 
 def main():
@@ -82,8 +82,13 @@ def main():
     # 标注
     parser.add_argument("--no-annotate", action="store_true",
                         help="不标注，只输出文本结果")
+    parser.add_argument("--smooth", action="store_true",
+                        help="异步平滑模式：后台间隔检测，全帧率输出（需 --display 实时查看）")
 
     args = parser.parse_args()
+
+    if args.smooth and args.no_annotate:
+        parser.error("--smooth 需要标注渲染，不能与 --no-annotate 同时使用")
 
     # ── 初始化模型 ──────────────────────────────────
     print(f"模型:   {args.model}")
@@ -118,25 +123,40 @@ def main():
     if categories and args.mode == "detect":
         print(f"类别:   {categories}")
 
-    # ── 选择流 ──────────────────────────────────────
+    # ── 构建检测参数 ────────────────────────────────
+    stream_kwargs = {"mode": args.mode, "max_frames": args.max_frames}
+    annotate_kw = {}  # 标注参数
+
     if args.mode == "detect":
-        stream = vl.detect_and_annotate_stream if not args.no_annotate else vl.detect_stream
-        extra = {"categories": categories}
+        stream_kwargs["categories"] = categories
+        annotate_kw["categories"] = categories
     elif args.mode == "ground":
         phrase = args.phrase or input("请输入描述: ")
-        stream = vl.ground_multi_and_annotate_stream if not args.no_annotate else vl.ground_multi_stream
-        extra = {"phrase": phrase}
+        stream_kwargs["phrase"] = phrase
     elif args.mode == "text":
-        stream = vl.detect_and_annotate_stream if not args.no_annotate else vl.detect_text_stream
-        extra = {"categories": []}
+        pass
     elif args.mode == "gui":
         phrase = args.phrase or input("请输入 GUI 元素描述: ")
-        stream = vl.ground_multi_and_annotate_stream if not args.no_annotate else vl.ground_gui_stream
-        extra = {"phrase": phrase, "output_type": args.output_type}
+        stream_kwargs["phrase"] = phrase
+        stream_kwargs["output_type"] = args.output_type
     elif args.mode == "point":
         phrase = args.phrase or input("请输入目标: ")
-        stream = vl.detect_and_annotate_stream if not args.no_annotate else vl.point_stream
-        extra = {"categories": []}
+        stream_kwargs["phrase"] = phrase
+
+    vr = VideoRenderer(vl) if not args.no_annotate else None
+
+    # smooth 模式需要检测函数（直接用 model，绕过 VideoLocator.stream）
+    if args.smooth:
+        if args.mode == "detect":
+            detect_fn = lambda f: la.detect(f, categories)
+        elif args.mode == "ground":
+            detect_fn = lambda f: la.ground_multi(f, phrase)
+        elif args.mode == "text":
+            detect_fn = lambda f: la.detect_text(f)
+        elif args.mode == "gui":
+            detect_fn = lambda f: la.ground_gui(f, phrase, output_type=args.output_type)
+        elif args.mode == "point":
+            detect_fn = lambda f: la.point(f, phrase)
 
     # ── 实时显示窗口 ────────────────────────────────
     display_window = None
@@ -160,7 +180,7 @@ def main():
     try:
         if args.no_annotate:
             # 纯文本输出
-            for result in stream(source, max_frames=args.max_frames, **extra):
+            for result in vl.stream(source, **stream_kwargs):
                 idx = result["frame_index"]
                 ts = result["timestamp"]
                 boxes = result.get("boxes", [])
@@ -175,10 +195,43 @@ def main():
                     for j, p in enumerate(points):
                         print(f"    [{j}] ({p['x']:.0f}, {p['y']:.0f})")
                 frame_count += 1
+
+        elif args.smooth:
+            # 异步平滑：后台间隔检测 + 全帧率渲染
+            print(f"平滑模式: 每 {args.frame_interval} 帧检测一次，全帧率输出")
+            for idx, ts, annotated, result in vr.annotate_smooth(
+                source,
+                detect_fn=detect_fn,
+                detect_interval=args.frame_interval,
+                max_frames=args.max_frames,
+                **annotate_kw,
+            ):
+                frame_count += 1
+                boxes = result.get("boxes", []) if result else []
+                status = f"{len(boxes)} obj" if result else "(缓存)"
+                print(f"\r帧 #{idx:06d} ({ts:.1f}s) | {status}", end="", flush=True)
+
+                if display_window:
+                    import cv2
+                    import numpy as np
+                    frame_bgr = cv2.cvtColor(np.array(annotated), cv2.COLOR_RGB2BGR)
+                    cv2.imshow(display_window, frame_bgr)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q') or key == 27:
+                        print("\n用户关闭窗口")
+                        break
+
+                if interrupted:
+                    break
+            print()  # 换行
+
         else:
-            # 标注 + 保存
-            for idx, ts, annotated, result in stream(source, max_frames=args.max_frames, **extra):
-                path = vl.save_frame(annotated, idx, args.output)
+            # 同步标注：检测 + 标注 + 保存
+            stream = vl.stream(source, **stream_kwargs)
+            for idx, ts, annotated, result in vr.annotate_stream(stream, **annotate_kw):
+                os.makedirs(args.output, exist_ok=True)
+                path = os.path.join(args.output, f"frame_{idx:06d}.jpg")
+                annotated.save(path)
                 boxes = result.get("boxes", [])
                 print(f"帧 #{idx:06d} ({ts:.1f}s) | {len(boxes)} 目标 | {os.path.basename(path)}")
                 frame_count += 1
