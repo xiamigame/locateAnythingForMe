@@ -64,7 +64,7 @@ def mjpeg_stream(gen):
 def camera_stream_generator(camera_id, detect_interval, categories_str, max_edge):
     """摄像头 MJPEG 生成器。"""
     la = get_model()
-    la.max_edge = int(max_edge)
+    la.config.max_edge = int(max_edge)
     categories = [c.strip() for c in categories_str.split(",") if c.strip()] or ["person"]
     vl = VideoLocator(la, frame_interval=int(detect_interval))
     vr = VideoRenderer(vl)
@@ -227,7 +227,25 @@ async def detect_video(
                     headers={"Content-Disposition": "attachment; filename=detected_frames.zip"})
 
 
-# ── 静态文件 ──────
+# ── 配置 API ──────
+
+@app.get("/api/config")
+async def get_config():
+    la = get_model()  # 确保模型已加载
+    return la.config.to_dict()
+
+
+@app.put("/api/config")
+async def update_config(data: dict):
+    la = get_model()
+    updatable = {"max_edge", "min_edge", "generation_mode", "temperature", "max_new_tokens", "top_p", "top_k"}
+    for k, v in data.items():
+        if k in updatable and hasattr(la.config, k):
+            setattr(la.config, k, v)
+            log.info("config updated: %s = %s", k, v)
+    return la.config.to_dict()
+
+
 @app.get("/api/model/status")
 async def model_status():
     return {"loaded": _LA is not None, "config": _LA_CONFIG.to_dict()}

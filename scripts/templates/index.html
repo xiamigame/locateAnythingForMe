@@ -93,8 +93,27 @@ button.stop { background: #c0392b; color: #fff; }
 
   <div id="status">模型加载中...</div>
   <details id="config-panel" style="margin-top: 4px;">
-    <summary style="font-size:12px;color:#888;cursor:pointer">⚙️ 配置</summary>
-    <div id="config-info" style="font-size:11px;color:#666;padding:4px 0"></div>
+    <summary style="font-size:12px;color:#888;cursor:pointer">⚙️ 配置调试</summary>
+    <div style="display:flex;flex-direction:column;gap:4px;margin-top:4px">
+      <label style="font-size:11px">max_edge <span id="cfg-edge-val">512</span>
+        <input id="cfg-edge" type="range" value="512" min="128" max="1024" step="64">
+      </label>
+      <label style="font-size:11px">generation_mode
+        <select id="cfg-mode">
+          <option value="fast">fast (MTP)</option>
+          <option value="slow">slow (NTP)</option>
+          <option value="hybrid">hybrid</option>
+        </select>
+      </label>
+      <div class="row">
+        <label style="font-size:11px">temp <span id="cfg-temp-val">0.0</span>
+          <input id="cfg-temp" type="range" value="0" min="0" max="2" step="0.1">
+        </label>
+        <label style="font-size:11px">tokens
+          <input id="cfg-tokens" type="number" value="512" min="32" max="2048" step="64" style="width:60px">
+        </label>
+      </div>
+    </div>
   </details>
   <div id="log"></div>
 </div>
@@ -209,6 +228,29 @@ $("#vid-start").onclick = async () => {
   log("完成！下载已开始");
 };
 
+// ── 配置控件 ──
+let _cfgLoaded = false;
+async function loadConfig() {
+  try {
+    const r = await fetch("/api/config");
+    const c = await r.json();
+    $("#cfg-edge").value = c.max_edge; $("#cfg-edge-val").textContent = c.max_edge;
+    $("#cfg-mode").value = c.generation_mode;
+    $("#cfg-temp").value = c.temperature; $("#cfg-temp-val").textContent = c.temperature;
+    $("#cfg-tokens").value = c.max_new_tokens;
+    _cfgLoaded = true;
+  } catch(e) {}
+}
+function cfgChanged(field, value) {
+  if (!_cfgLoaded) return;
+  fetch("/api/config", { method: "PUT", headers: {"Content-Type":"application/json"}, body: JSON.stringify({[field]: value}) })
+    .catch(e => log("config update failed: " + e));
+}
+$("#cfg-edge").oninput = function() { $("#cfg-edge-val").textContent = this.value; cfgChanged("max_edge", parseInt(this.value)); };
+$("#cfg-mode").onchange = function() { cfgChanged("generation_mode", this.value); };
+$("#cfg-temp").oninput = function() { $("#cfg-temp-val").textContent = parseFloat(this.value).toFixed(1); cfgChanged("temperature", parseFloat(this.value)); };
+$("#cfg-tokens").onchange = function() { cfgChanged("max_new_tokens", parseInt(this.value)); };
+
 // ── 模型状态轮询 ──
 setInterval(async () => {
   try {
@@ -217,10 +259,7 @@ setInterval(async () => {
     if (s.loaded) {
       const c = s.config || {};
       $("#status").textContent = `✅ 模型就绪 | ${c.model_path || ""}`;
-      $("#config-info").innerHTML = [
-        `max_edge: ${c.max_edge} | generation: ${c.generation_mode}`,
-        `temperature: ${c.temperature} | max_tokens: ${c.max_new_tokens}`,
-      ].join("<br>");
+      if (!_cfgLoaded) loadConfig();
     } else {
       $("#status").textContent = "⏳ 模型加载中...";
     }

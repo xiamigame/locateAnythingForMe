@@ -77,8 +77,6 @@ class LocateAnythingForMe(LocateAnythingWorker):
             config = _LocateConfig(model_path=model_path, device=device)
 
         self.config = config
-        self.max_edge = config.max_edge
-        self.min_edge = config.min_edge
 
         super().__init__(
             model_path=config.model_path,
@@ -86,6 +84,22 @@ class LocateAnythingForMe(LocateAnythingWorker):
             dtype=dtype,
             **worker_kwargs,
         )
+
+    @property
+    def max_edge(self):
+        return self.config.max_edge
+
+    @max_edge.setter
+    def max_edge(self, value):
+        self.config.max_edge = value
+
+    @property
+    def min_edge(self):
+        return self.config.min_edge
+
+    @min_edge.setter
+    def min_edge(self, value):
+        self.config.min_edge = value
 
     # ── 图像缩放 ──────────────────────────────────────────
 
