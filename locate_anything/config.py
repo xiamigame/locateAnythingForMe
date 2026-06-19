@@ -1,5 +1,5 @@
 """
-全局配置管理
+全局配置
 """
 from dataclasses import dataclass, field
 from typing import Optional
@@ -7,16 +7,16 @@ from typing import Optional
 
 @dataclass
 class LocateConfig:
-    """locateAnythingForMe 配置 —— 基于 LocateAnything-3B"""
+    """locateAnythingForMe 配置"""
 
-    # 模型路径（HuggingFace model id 或本地路径）
+    # 模型
     model_path: str = "nvidia/LocateAnything-3B"
-
-    # 推理设备
     device: str = "cuda"
+    torch_dtype: str = "bfloat16"  # bfloat16 / float16 / float32
 
-    # 数据类型 (bfloat16 / float16 / float32)
-    torch_dtype: str = "bfloat16"
+    # 图像缩放策略
+    max_edge: int = 1024       # 最长边缩放到此值（1024=平衡, 768=较快, 512=最快）
+    min_edge: Optional[int] = None  # 最短边最小值（None=不限制）
 
     # 生成参数
     temperature: float = 0.7
@@ -26,7 +26,7 @@ class LocateConfig:
     repetition_penalty: float = 1.1
     generation_mode: str = "hybrid"  # "fast" | "slow" | "hybrid"
 
-    # 批处理（需要下载 HF 模型仓库中的 batch_utils/ 和 kernel_utils/）
+    # 批处理
     use_batch_runtime: bool = False
     attn: str = "la_flash"
     vision_attn: str = "auto"
@@ -34,7 +34,6 @@ class LocateConfig:
     group_size: int = 0
 
 
-# 默认全局配置
 _default_config: Optional[LocateConfig] = None
 
 

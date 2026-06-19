@@ -1,14 +1,16 @@
 """
-locateAnythingForMe - 基于 NVlabs/Eagle Embodied (LocateAnything-3B) 的视觉定位 API
+locateAnythingForMe — 基于 LocateAnything-3B 的视觉定位 API
 """
-from .api import LocateAnything, LocateResult
+from .tool import LocateAnythingForMe, _DEFAULT_COLORS
+from .api import LocateAnything  # 向后兼容别名
 from .config import LocateConfig, get_default_config, set_default_config
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
+    "LocateAnythingForMe",
     "LocateAnything",
-    "LocateResult",
     "LocateConfig",
     "get_default_config",
     "set_default_config",
+    "_DEFAULT_COLORS",
 ]
