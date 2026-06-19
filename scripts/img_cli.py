@@ -21,11 +21,14 @@ locateAnythingForMe 图像标注命令行工具
     # 调整缩放
     python scripts/img_cli.py -i photo.jpg -c "person" --max-edge 512
 """
-import argparse
 import sys
-import os
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import locate_anything  # noqa: F401  环境初始化在 __init__.py 里
+
+import argparse
+import os
 
 from locate_anything import LocateAnythingForMe, LocateConfig
 

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocateAnythingForMe</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: #111; color: #eee; height: 100vh; display: flex; }
+#sidebar { width: 300px; background: #1a1a1a; padding: 20px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid #333; overflow-y: auto; flex-shrink: 0; }
+#main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+#main img, #main video, #main canvas { max-width: 100%; max-height: 80vh; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,.5); }
+h2 { font-size: 18px; color: #76B900; margin-bottom: 4px; }
+label { font-size: 12px; color: #999; margin-top: 8px; display: block; }
+input, select, textarea { width: 100%; padding: 8px; margin-top: 2px; background: #222; border: 1px solid #333; color: #eee; border-radius: 4px; font-size: 13px; }
+input[type=range] { padding: 0; }
+button { width: 100%; padding: 10px; background: #76B900; color: #000; border: none; border-radius: 6px; font-weight: bold; font-size: 14px; cursor: pointer; margin-top: 12px; }
+button:hover { background: #8ad500; }
+button.stop { background: #c0392b; color: #fff; }
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.tab { flex: 1; padding: 8px; background: #222; border: 1px solid #333; border-radius: 6px 6px 0 0; cursor: pointer; text-align: center; font-size: 13px; color: #999; }
+.tab.active { background: #333; color: #fff; border-bottom-color: #76B900; border-bottom-width: 2px; }
+.tab-content { display: none; flex: 1; flex-direction: column; gap: 6px; }
+.tab-content.active { display: flex; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row label { margin: 0; flex: 1; }
+#status { font-size: 11px; color: #888; text-align: center; margin-top: 4px; }
+#log { font-size: 11px; color: #555; max-height: 120px; overflow-y: auto; background: #0a0a0a; padding: 8px; border-radius: 4px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>🔍 LocateAnything</h2>
+  <div class="tabs">
+    <div class="tab active" data-tab="camera">📷 摄像头</div>
+    <div class="tab" data-tab="video">🎬 视频</div>
+    <div class="tab" data-tab="screen">🖥️ 屏幕</div>
+    <div class="tab" data-tab="image">🖼️ 图片</div>
+  </div>
+
+  <!-- Camera Tab -->
+  <div class="tab-content active" id="tab-camera">
+    <label>摄像头 ID<input id="cam-id" type="number" value="0" min="0" max="10"></label>
+    <label>检测间隔 (每 N 帧)<input id="cam-interval" type="range" value="4" min="1" max="30"></label>
+    <span id="cam-interval-val" style="font-size:11px;color:#888">4</span>
+    <label>检测类别<input id="cam-cats" value="person,face,chair"></label>
+    <label>缩放最长边<input id="cam-edge" type="range" value="512" min="256" max="1024" step="128"></label>
+    <span id="cam-edge-val" style="font-size:11px;color:#888">512</span>
+    <button id="cam-start">▶ 开始</button>
+    <button id="cam-stop" class="stop" style="display:none">⏹ 停止</button>
+  </div>
+
+  <!-- Video Tab -->
+  <div class="tab-content" id="tab-video">
+    <label>视频文件<input id="vid-file" type="file" accept="video/*"></label>
+    <label>检测间隔<input id="vid-interval" type="range" value="4" min="1" max="30"></label>
+    <span id="vid-interval-val" style="font-size:11px;color:#888">4</span>
+    <label>检测类别<input id="vid-cats" value="person,car"></label>
+    <label>缩放最长边<input id="vid-edge" type="range" value="512" min="256" max="1024" step="128"></label>
+    <span id="vid-edge-val" style="font-size:11px;color:#888">512</span>
+    <button id="vid-start">▶ 处理</button>
+    <progress id="vid-progress" style="width:100%;display:none"></progress>
+  </div>
+
+  <!-- Screen Tab -->
+  <div class="tab-content" id="tab-screen">
+    <label>显示器<input id="scr-monitor" type="number" value="1" min="0" max="10"></label>
+    <label>检测间隔<input id="scr-interval" type="range" value="8" min="1" max="30"></label>
+    <span id="scr-interval-val" style="font-size:11px;color:#888">8</span>
+    <label>检测类别<input id="scr-cats" value="button,icon,text,image"></label>
+    <label>缩放最长边<input id="scr-edge" type="range" value="512" min="256" max="1024" step="128"></label>
+    <span id="scr-edge-val" style="font-size:11px;color:#888">512</span>
+    <button id="scr-start">▶ 开始</button>
+    <button id="scr-stop" class="stop" style="display:none">⏹ 停止</button>
+  </div>
+
+  <!-- Image Tab -->
+  <div class="tab-content" id="tab-image">
+    <label>图片<input id="img-file" type="file" accept="image/*"></label>
+    <label>模式<select id="img-mode">
+      <option value="detect">目标检测</option>
+      <option value="ground">短语定位</option>
+      <option value="text">文字检测</option>
+      <option value="gui">GUI定位</option>
+      <option value="point">指向定位</option>
+    </select></label>
+    <label>类别/描述<input id="img-cats" value="person,face"></label>
+    <label>缩放<input id="img-edge" type="range" value="512" min="256" max="1024" step="128"></label>
+    <span id="img-edge-val" style="font-size:11px;color:#888">512</span>
+    <button id="img-start">▶ 检测</button>
+  </div>
+
+  <div id="status">模型加载中...</div>
+  <div id="log"></div>
+</div>
+
+<div id="main">
+  <p style="color:#555">选择一个 Tab 开始</p>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+const main = $("#main");
+
+function log(msg) {
+  const el = $("#log");
+  el.textContent += msg + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Tab切换 ──
+$$(".tab").forEach(t => t.onclick = () => {
+  $$(".tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  $$(".tab-content").forEach(x => x.classList.remove("active"));
+  $(`#tab-${t.dataset.tab}`).classList.add("active");
+  // 清除主区域
+  main.innerHTML = '<p style="color:#555">等待操作...</p>';
+});
+
+// ── Range 显示 ──
+["cam","vid","scr","img"].forEach(p => {
+  const r1 = $(`#${p}-interval`), v1 = $(`#${p}-interval-val`);
+  if (r1) r1.oninput = () => v1.textContent = r1.value;
+  const r2 = $(`#${p}-edge`), v2 = $(`#${p}-edge-val`);
+  if (r2) r2.oninput = () => v2.textContent = r2.value;
+});
+
+// ── 流式 helper (MJPEG) ──
+let currentStream = null;
+function startStream(url_) {
+  stopStream();
+  main.innerHTML = `<img id="stream-img" src="${url_}" style="width:100%">`;
+  log("Stream started: " + url_);
+}
+function stopStream() {
+  if (currentStream) { currentStream.src = ""; currentStream = null; }
+  main.innerHTML = '<p style="color:#555">已停止</p>';
+}
+
+// ── Camera ──
+$("#cam-start").onclick = () => {
+  const id = $("#cam-id").value;
+  const interval = $("#cam-interval").value;
+  const cats = encodeURIComponent($("#cam-cats").value);
+  const edge = $("#cam-edge").value;
+  const url = `/api/stream/camera?camera=${id}&interval=${interval}&categories=${cats}&max_edge=${edge}`;
+  startStream(url);
+  $("#cam-start").style.display = "none";
+  $("#cam-stop").style.display = "block";
+};
+$("#cam-stop").onclick = () => { stopStream(); $("#cam-start").style.display = "block"; $("#cam-stop").style.display = "none"; };
+
+// ── Screen ──
+$("#scr-start").onclick = () => {
+  const mon = $("#scr-monitor").value;
+  const interval = $("#scr-interval").value;
+  const cats = encodeURIComponent($("#scr-cats").value);
+  const edge = $("#scr-edge").value;
+  const url = `/api/stream/screen?monitor=${mon}&interval=${interval}&categories=${cats}&max_edge=${edge}`;
+  startStream(url);
+  $("#scr-start").style.display = "none";
+  $("#scr-stop").style.display = "block";
+};
+$("#scr-stop").onclick = () => { stopStream(); $("#scr-start").style.display = "block"; $("#scr-stop").style.display = "none"; };
+
+// ── Image ──
+$("#img-start").onclick = async () => {
+  const file = $("#img-file").files[0];
+  if (!file) return log("请选择图片");
+  const form = new FormData();
+  form.append("image", file);
+  form.append("mode", $("#img-mode").value);
+  form.append("categories", $("#img-cats").value);
+  form.append("max_edge", $("#img-edge").value);
+  log("检测中...");
+  const resp = await fetch("/api/detect/image", { method: "POST", body: form });
+  const blob = await resp.blob();
+  const info = resp.headers.get("X-Result") || "";
+  main.innerHTML = `<img src="${URL.createObjectURL(blob)}"><p style="color:#888">${info}</p>`;
+  log("完成: " + info);
+};
+
+// ── Video ──
+$("#vid-start").onclick = async () => {
+  const file = $("#vid-file").files[0];
+  if (!file) return log("请选择视频");
+  const form = new FormData();
+  form.append("video", file);
+  form.append("interval", $("#vid-interval").value);
+  form.append("categories", $("#vid-cats").value);
+  form.append("max_edge", $("#vid-edge").value);
+  log("处理中（可能需要几分钟）...");
+  const prog = $("#vid-progress");
+  prog.style.display = "block";
+  const resp = await fetch("/api/detect/video", { method: "POST", body: form });
+  prog.style.display = "none";
+  const blob = await resp.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "detected_frames.zip";
+  a.click();
+  log("完成！下载已开始");
+};
+
+// ── 模型状态轮询 ──
+setInterval(async () => {
+  try {
+    const r = await fetch("/api/model/status");
+    const s = await r.json();
+    $("#status").textContent = s.loaded ? "✅ 模型就绪" : "⏳ 模型加载中...";
+  } catch(e) {}
+}, 2000);
+</script>
+</body>
+</html>
