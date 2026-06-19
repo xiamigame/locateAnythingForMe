@@ -25,10 +25,8 @@ Thumbs.db
 # 临时文件
 .tmp/
 
-# 生成的图像输出
-screenshot*.png
-output*.png
-*_annotated.png
+# 标注生成的图像（img 目录下 *_annotated.* 不提交）
+*_annotated.*
 
 # 模型权重（大文件）
 *.bin

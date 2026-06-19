@@ -17,6 +17,7 @@ locateAnythingForMe/
 │   └── config.py             # 全局配置（模型、缩放策略、生成参数）
 ├── submodules/
 │   └── Eagle/                # git submodule → 核心引用 Embodied/locateanything_worker.py
+├── img/                      # 测试图片 + 标注输出（*_annotated.* 不提交）
 ├── docs/
 │   ├── features/             # 每次迭代的功能记录（编号 + 名称）
 │   └── design/               # 关键设计文档

@@ -128,8 +128,9 @@ def main():
 
 
 def _default_output(image_path: str, mode: str) -> str:
-    base, ext = os.path.splitext(image_path)
-    return f"{base}_{mode}_annotated{ext}"
+    name = os.path.basename(image_path)
+    base, ext = os.path.splitext(name)
+    return os.path.join("img", f"{base}_{mode}_annotated{ext}")
 
 
 if __name__ == "__main__":
