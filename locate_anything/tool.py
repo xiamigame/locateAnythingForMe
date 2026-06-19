@@ -6,6 +6,7 @@ LocateAnythingForMe —— 内部封装工具
 - 坐标自动映射回原图尺寸
 - 检测 + 标注一体化
 """
+import os
 import re
 import sys
 from pathlib import Path
@@ -14,8 +15,18 @@ from typing import Optional, Union
 import torch
 from PIL import Image, ImageDraw, ImageFont
 
+# ── 环境初始化（导入时自动执行）────────────────────────────
+# 项目根目录
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# HuggingFace 镜像 + 缓存目录（国内加速，且避免 C 盘爆满）
+_CACHE_DIR = _PROJECT_ROOT / ".cache" / "huggingface"
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+os.environ.setdefault("HF_HOME", str(_CACHE_DIR))
+os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(_CACHE_DIR / "hub"))
+
 # 导入官方 worker
-_EMBODIED_PATH = Path(__file__).resolve().parent.parent / "submodules" / "Eagle" / "Embodied"
+_EMBODIED_PATH = _PROJECT_ROOT / "submodules" / "Eagle" / "Embodied"
 if str(_EMBODIED_PATH) not in sys.path:
     sys.path.insert(0, str(_EMBODIED_PATH))
 

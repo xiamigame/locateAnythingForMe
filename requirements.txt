@@ -1,4 +1,11 @@
-torch>=2.0.0
-transformers>=4.57.1
+torch>=2.5.1
+transformers==4.57.1
 accelerate>=1.5.2
 Pillow>=9.0.0
+huggingface_hub>=0.36.2
+opencv-python
+decord
+lmdb
+requests
+torchvision
+peft

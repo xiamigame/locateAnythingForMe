@@ -12,10 +12,10 @@ class LocateConfig:
     # 模型
     model_path: str = "nvidia/LocateAnything-3B"
     device: str = "cuda"
-    torch_dtype: str = "bfloat16"  # bfloat16 / float16 / float32
+    torch_dtype: str = "float16"  # bfloat16 / float16 / float32（RTX 3080 10G 用 float16）
 
     # 图像缩放策略
-    max_edge: int = 1024       # 最长边缩放到此值（1024=平衡, 768=较快, 512=最快）
+    max_edge: int = 512        # 最长边缩放到此值（512=RTX3080安全, 768=较快, 1024=需大显存）
     min_edge: Optional[int] = None  # 最短边最小值（None=不限制）
 
     # 生成参数
