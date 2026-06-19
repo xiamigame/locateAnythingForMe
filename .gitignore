@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtualenv
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model weights (large files)
+*.bin
+*.safetensors
+*.pt
+*.pth
+checkpoints/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment
+.env
