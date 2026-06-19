@@ -1,11 +1,13 @@
-# locateAnythingForMe
+# 🎯 locateAnythingForMe
 
-基于 [NVlabs/Eagle](https://github.com/NVlabs/Eagle) 的视觉定位与多模态理解 API 封装项目。
+基于 [NVlabs/Eagle](https://github.com/NVlabs/Eagle) → **Embodied (LocateAnything-3B)** 的视觉定位 API 封装。
 
-Eagle 是 NVIDIA Research 开发的一系列以视觉为中心的高分辨率多模态大语言模型（MLLM），
-采用多视觉编码器混合架构（Mixture of Vision Encoders），支持高达 1K~4K 分辨率的图像理解。
-
-本项目将其封装为易用的 Python API，方便快速集成到下游应用中。
+LocateAnything-3B 是 NVIDIA 开源的 3B 参数视觉定位模型，支持：
+- 🎯 目标检测（Object Detection）
+- 📝 短语定位（Phrase Grounding）
+- 🔤 文字检测（OCR / Text Detection）
+- 🖥️ GUI 元素定位
+- 📍 指向（Pointing）
 
 ## 项目结构
 
@@ -13,10 +15,10 @@ Eagle 是 NVIDIA Research 开发的一系列以视觉为中心的高分辨率多
 locateAnythingForMe/
 ├── locate_anything/          # 主包
 │   ├── __init__.py
-│   ├── api.py                # 核心 API 封装
+│   ├── api.py                # 核心 API —— 封装 LocateAnythingWorker
 │   └── config.py             # 配置管理
 ├── submodules/
-│   └── Eagle/                # Eagle 子模块
+│   └── Eagle/                # NVlabs/Eagle (git submodule) → 使用其中的 Embodied/
 ├── scripts/
 │   └── demo.py               # 演示脚本
 ├── requirements.txt
@@ -26,38 +28,48 @@ locateAnythingForMe/
 
 ## 快速开始
 
-### 1. 克隆项目（含子模块）
+### 1. 克隆（含子模块）
 
 ```bash
 git clone --recurse-submodules <this-repo-url>
 cd locateAnythingForMe
-```
-
-### 2. 安装依赖
-
-```bash
 pip install -r requirements.txt
-pip install -e .
 ```
 
-### 3. 使用示例
+### 2. 使用
 
 ```python
 from locate_anything import LocateAnything
 
-# 初始化模型
-la = LocateAnything(model_path="NVEagle/Eagle-X5-13B-Chat")
+la = LocateAnything(model_path="nvidia/LocateAnything-3B")
 
-# 分析图像
-result = la.describe("path/to/image.jpg", prompt="Describe this image.")
-print(result)
+# 目标检测
+result = la.detect("screenshot.jpg", ["person", "car", "dog"])
+for box in result.boxes:
+    print(box)  # {"x1": 100, "y1": 200, "x2": 300, "y2": 400}
 
-# 定位目标
-results = la.locate("path/to/image.jpg", target="a red car")
-for item in results:
-    print(item)
+# 短语定位
+result = la.ground("image.jpg", "people wearing red shirts")
+
+# 文字检测
+result = la.detect_text("document.jpg")
+
+# GUI 元素定位
+result = la.ground_gui("screenshot.png", "the search button")
+
+# 指向
+result = la.point("scene.jpg", "the traffic light")
 ```
 
-## License
+### 3. 命令行
 
-本项目代码采用 Apache 2.0 许可。Eagle 模型权重使用 CC BY-NC 4.0 许可（仅限非商业用途）。
+```bash
+python scripts/demo.py -i screenshot.jpg -c "person,car" -m detect
+```
+
+## 模型
+
+模型首次使用时会自动从 HuggingFace 下载：[nvidia/LocateAnything-3B](https://huggingface.co/nvidia/LocateAnything-3B)
+
+- 代码许可：Apache 2.0（[Eagle 仓库](https://github.com/NVlabs/Eagle)）
+- 模型权重：NVIDIA License（非商业用途）

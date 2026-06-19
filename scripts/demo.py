@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 """
-locateAnythingForMe 演示脚本
+locateAnythingForMe 演示脚本 —— 截图测试
 """
 import argparse
 import sys
 import os
 
-# 确保项目根目录在 path 中
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from locate_anything import LocateAnything, LocateConfig
@@ -15,11 +14,13 @@ from locate_anything import LocateAnything, LocateConfig
 def main():
     parser = argparse.ArgumentParser(description="locateAnythingForMe 演示")
     parser.add_argument("--image", "-i", type=str, required=True, help="输入图像路径")
-    parser.add_argument("--prompt", "-p", type=str, default="Describe this image in detail.", help="文本提示")
-    parser.add_argument("--model", "-m", type=str, default="NVEagle/Eagle-X5-13B-Chat", help="模型路径")
-    parser.add_argument("--device", "-d", type=str, default="cuda", help="推理设备 (cuda/cpu)")
-    parser.add_argument("--max-tokens", type=int, default=512, help="最大生成 token 数")
-    parser.add_argument("--temperature", type=float, default=0.2, help="采样温度")
+    parser.add_argument("--categories", "-c", type=str, default="person,car,bicycle",
+                        help="检测类别，逗号分隔")
+    parser.add_argument("--model", "-m", type=str, default="nvidia/LocateAnything-3B", help="模型路径")
+    parser.add_argument("--device", "-d", type=str, default="cuda", help="推理设备")
+    parser.add_argument("--mode", choices=["detect", "ground", "text", "gui", "point"],
+                        default="detect", help="运行模式")
+    parser.add_argument("--phrase", "-p", type=str, default="", help="定位/指向的描述")
 
     args = parser.parse_args()
 
@@ -30,20 +31,44 @@ def main():
     config = LocateConfig(
         model_path=args.model,
         device=args.device,
-        temperature=args.temperature,
-        max_new_tokens=args.max_tokens,
     )
 
     print(f"模型: {config.model_path}")
     print(f"设备: {config.device}")
     print(f"图像: {args.image}")
-    print(f"提示: {args.prompt}")
+    print(f"模式: {args.mode}")
     print("-" * 50)
 
     la = LocateAnything(config)
-    result = la.describe(args.image, prompt=args.prompt)
 
-    print(f"\n结果:\n{result.output}")
+    if args.mode == "detect":
+        categories = [c.strip() for c in args.categories.split(",")]
+        print(f"检测类别: {categories}")
+        result = la.detect(args.image, categories)
+        print(f"\n原始输出:\n{result.raw_output}")
+        print(f"\n解析结果 ({len(result.boxes)} 个框):")
+        for i, box in enumerate(result.boxes):
+            print(f"  [{i}] x1={box['x1']:.0f} y1={box['y1']:.0f} "
+                  f"x2={box['x2']:.0f} y2={box['y2']:.0f}")
+
+    elif args.mode == "ground":
+        phrase = args.phrase or input("请输入描述: ")
+        result = la.ground(args.image, phrase)
+        print(f"\n结果:\n{result.raw_output}")
+
+    elif args.mode == "text":
+        result = la.detect_text(args.image)
+        print(f"\n结果:\n{result.raw_output}")
+
+    elif args.mode == "gui":
+        phrase = args.phrase or input("请输入元素描述: ")
+        result = la.ground_gui(args.image, phrase)
+        print(f"\n结果:\n{result.raw_output}")
+
+    elif args.mode == "point":
+        phrase = args.phrase or input("请输入目标描述: ")
+        result = la.point(args.image, phrase)
+        print(f"\n结果:\n{result.raw_output}")
 
 
 if __name__ == "__main__":
