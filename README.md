@@ -20,7 +20,7 @@ locateAnythingForMe/
 ├── submodules/
 │   └── Eagle/                # NVlabs/Eagle (git submodule) → 使用其中的 Embodied/
 ├── scripts/
-│   └── demo.py               # 演示脚本
+│   └── img_cli.py               # 演示脚本
 ├── requirements.txt
 ├── setup.py
 └── README.md
@@ -64,7 +64,7 @@ result = la.point("scene.jpg", "the traffic light")
 ### 3. 命令行
 
 ```bash
-python scripts/demo.py -i screenshot.jpg -c "person,car" -m detect
+python scripts/img_cli.py -i screenshot.jpg -c "person,car" -m detect
 ```
 
 ## 模型

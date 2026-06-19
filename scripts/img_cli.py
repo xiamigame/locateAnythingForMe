@@ -1,25 +1,25 @@
 #!/usr/bin/env python
 """
-locateAnythingForMe 演示脚本
+locateAnythingForMe 图像标注命令行工具
 
 用法:
     # 目标检测 + 标注
-    python scripts/demo.py -i screenshot.png -c "person,face,chair"
+    python scripts/img_cli.py -i screenshot.png -c "person,face,chair"
 
     # 短语定位
-    python scripts/demo.py -i photo.jpg -m ground -p "people wearing red shirts"
+    python scripts/img_cli.py -i photo.jpg -m ground -p "people wearing red shirts"
 
     # 文字检测
-    python scripts/demo.py -i document.jpg -m text
+    python scripts/img_cli.py -i document.jpg -m text
 
     # GUI 定位
-    python scripts/demo.py -i screenshot.png -m gui -p "search button"
+    python scripts/img_cli.py -i screenshot.png -m gui -p "search button"
 
     # 指向
-    python scripts/demo.py -i scene.jpg -m point -p "traffic light"
+    python scripts/img_cli.py -i scene.jpg -m point -p "traffic light"
 
     # 调整缩放
-    python scripts/demo.py -i photo.jpg -c "person" --max-edge 512
+    python scripts/img_cli.py -i photo.jpg -c "person" --max-edge 512
 """
 import argparse
 import sys

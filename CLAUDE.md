@@ -22,7 +22,7 @@ locateAnythingForMe/
 │   ├── features/             # 每次迭代的功能记录（编号 + 名称）
 │   └── design/               # 关键设计文档
 ├── scripts/
-│   └── demo.py               # 命令行演示工具
+│   └── img_cli.py             # 命令行图像标注工具
 ├── requirements.txt
 ├── setup.py
 └── README.md

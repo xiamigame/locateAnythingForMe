@@ -145,8 +145,9 @@ class LocateAnythingForMe(LocateAnythingWorker):
     def parse_boxes_scaled(
         answer: str, original_width: int, original_height: int
     ) -> list[dict]:
-        """用原图尺寸解析 box（无需映射，模型输出是 [0,1000] 归一化坐标）。"""
-        return LocateAnythingWorker.parse_boxes(answer, original_width, original_height)
+        """用原图尺寸解析 box + 规范化坐标（确保 x1<=x2, y1<=y2）。"""
+        boxes = LocateAnythingWorker.parse_boxes(answer, original_width, original_height)
+        return LocateAnythingForMe._normalize_boxes(boxes)
 
     @staticmethod
     def parse_points_scaled(
@@ -154,6 +155,20 @@ class LocateAnythingForMe(LocateAnythingWorker):
     ) -> list[dict]:
         """用原图尺寸解析 point。"""
         return LocateAnythingWorker.parse_points(answer, original_width, original_height)
+
+    @staticmethod
+    def _normalize_boxes(boxes: list[dict]) -> list[dict]:
+        """规范化 box 坐标：确保 x1<=x2, y1<=y2, 裁剪到非负。"""
+        for b in boxes:
+            if b["x1"] > b["x2"]:
+                b["x1"], b["x2"] = b["x2"], b["x1"]
+            if b["y1"] > b["y2"]:
+                b["y1"], b["y2"] = b["y2"], b["y1"]
+            b["x1"] = max(0, b["x1"])
+            b["y1"] = max(0, b["y1"])
+            b["x2"] = max(0, b["x2"])
+            b["y2"] = max(0, b["y2"])
+        return boxes
 
     # ── 封装推理方法（resize → infer → parse on original）───
 
@@ -346,6 +361,11 @@ class LocateAnythingForMe(LocateAnythingWorker):
                     int(item["x1"]), int(item["y1"]),
                     int(item["x2"]), int(item["y2"]),
                 )
+                # 安全规范化：确保 x1<=x2, y1<=y2
+                if x1 > x2: x1, x2 = x2, x1
+                if y1 > y2: y1, y2 = y2, y1
+                if x1 == x2: x2 += 1
+                if y1 == y2: y2 += 1
                 draw.rectangle([x1, y1, x2, y2], outline=color, width=line_width)
 
                 # 标签
