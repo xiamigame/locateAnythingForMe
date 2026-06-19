@@ -13,6 +13,7 @@ import logging
 import os as _os
 import queue
 import threading
+import time
 from contextlib import redirect_stdout as _redirect_stdout
 from typing import Callable, Iterator, Optional
 
@@ -137,7 +138,10 @@ def annotate_frame(
     idx = result.get("frame_index", 0)
     ts = result.get("timestamp", 0.0)
     draw_watermark(annotated, idx, ts)
-    return model.annotate(annotated, result, **kwargs)
+    t0 = time.time()
+    out = model.annotate(annotated, result, **kwargs)
+    _log.info("[render] annotate_frame #%06d | %.0fms", idx, (time.time() - t0) * 1000)
+    return out
 
 
 # ── VideoRenderer ────────────────────────────────────────
@@ -252,22 +256,29 @@ class VideoRenderer:
                     break
                 _idx, _ts, _frame = item
                 try:
+                    t0 = time.time()
                     # 抑制模型内部的 print（Statistic Info 等调试输出）
                     with open(_os.devnull, "w") as _devnull, _redirect_stdout(_devnull):
                         result = detect_fn(_frame)
+                    detect_ms = (time.time() - t0) * 1000
                     result["frame_index"] = _idx
                     result["timestamp"] = _ts
                     result["image"] = _frame
                     with _LOCK:
                         _cache["result"] = result
+                    items = len(result.get("boxes", []) or result.get("points", []))
+                    _log.info("[async] detect #%06d | %.0fms | %d items",
+                              _idx, detect_ms, items)
                 except Exception as e:
-                    print(f"[async] 检测帧 #{_idx} 失败: {e}", flush=True)
+                    _log.error("[async] detect #%d failed: %s", _idx, e)
 
         worker = threading.Thread(target=_detection_worker, daemon=True)
         worker.start()
 
         count = 0
+        t_summary = time.time()
         wm_font = _get_font(16)
+        _log.info("[async] start: interval=%d max_frames=%s", detect_interval, max_frames or "∞")
 
         try:
             for idx, ts, frame in self.vl._iter_source(source, frame_interval=1, max_frames=max_frames):
@@ -279,11 +290,12 @@ class VideoRenderer:
                     try:
                         _work_queue.put_nowait((idx, ts, frame.copy()))
                     except queue.Full:
-                        pass
+                        _log.info("[async] queue full, skip #%d", idx)
 
                 with _LOCK:
                     cached_result = _cache["result"]
 
+                t0_render = time.time()
                 if cached_result is not None:
                     # 在当前帧上渲染叠加层，避免帧回滚
                     cached_result["image"] = frame
@@ -291,6 +303,7 @@ class VideoRenderer:
                     out = frame.copy()
                     out.paste(overlay, (0, 0), overlay)
                     draw_watermark(out, idx, ts, wm_font)
+                    render_ms = (time.time() - t0_render) * 1000
                     display = dict(cached_result)
                     display["image"] = frame
                     display["frame_index"] = idx
@@ -299,7 +312,16 @@ class VideoRenderer:
                 else:
                     out = frame.copy()
                     draw_watermark(out, idx, ts, wm_font)
+                    render_ms = (time.time() - t0_render) * 1000
                     yield idx, ts, out, None
+
+                # 每 30 帧输出一次渲染性能摘要
+                if count % 30 == 0:
+                    elapsed = time.time() - t_summary
+                    fps = 30 / elapsed
+                    _log.info("[async] render fps=%.1f render_ms=%.0f frame=%d/%s",
+                              fps, render_ms, count, max_frames or "∞")
+                    t_summary = time.time()
         finally:
             _stop.set()
             # 清空待处理队列，发 poison pill，不 join（daemon 线程会自动退出）

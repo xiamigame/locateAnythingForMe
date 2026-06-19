@@ -267,13 +267,23 @@ class VideoLocator:
         Yields:
             dict: {frame_index, timestamp, image, answer, boxes/points, original_size, ...}
         """
+        _log.info("stream start: mode=%s source=%s interval=%s max_frames=%s",
+                  mode, source, frame_interval or self.frame_interval, max_frames)
         detect_fn = self._get_detect_fn(mode, categories, phrase, output_type, **kwargs)
+        t_last = time.time()
 
         for idx, ts, frame in self._iter_source(source, frame_interval, max_frames):
+            t0 = time.time()
             result = detect_fn(frame)
+            detect_ms = (time.time() - t0) * 1000
             result["frame_index"] = idx
             result["timestamp"] = ts
             result["image"] = frame
+
+            elapsed_s = ts - t_last if t_last else 0
+            _log.info("[proc] detect #%06d | %.0fms | boxes=%d | interval=%.1fs",
+                       idx, detect_ms, len(result.get("boxes", []) or result.get("points", [])), elapsed_s)
+            t_last = ts
             yield result
 
     def _get_detect_fn(

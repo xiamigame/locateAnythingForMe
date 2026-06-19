@@ -22,7 +22,7 @@ _PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT))
 
 # 环境初始化
-from locate_anything import VideoLocator, VideoRenderer, LocateAnythingForMe
+from locate_anything import VideoLocator, VideoRenderer, LocateAnythingForMe, LocateConfig
 
 from PIL import Image
 import numpy as np
@@ -34,7 +34,7 @@ log = logging.getLogger("server")
 # ── 全局模型（懒加载）─────
 _LA: LocateAnythingForMe = None
 _LA_LOCK = threading.Lock()
-_LA_CONFIG = {"model_path": "nvidia/LocateAnything-3B", "device": "cuda", "max_edge": 512}
+_LA_CONFIG: LocateConfig = LocateConfig()
 
 
 def get_model():
@@ -44,8 +44,9 @@ def get_model():
     with _LA_LOCK:
         if _LA is not None:
             return _LA
-        log.info("Loading model %s (max_edge=%d)...", _LA_CONFIG["model_path"], _LA_CONFIG["max_edge"])
-        _LA = LocateAnythingForMe(**_LA_CONFIG)
+        log.info("Loading model %s (max_edge=%d generation=%s)...",
+                 _LA_CONFIG.model_path, _LA_CONFIG.max_edge, _LA_CONFIG.generation_mode)
+        _LA = LocateAnythingForMe(config=_LA_CONFIG)
         log.info("Model loaded.")
         return _LA
 
@@ -229,7 +230,7 @@ async def detect_video(
 # ── 静态文件 ──────
 @app.get("/api/model/status")
 async def model_status():
-    return {"loaded": _LA is not None, "config": _LA_CONFIG}
+    return {"loaded": _LA is not None, "config": _LA_CONFIG.to_dict()}
 
 
 # ── 入口 ──────
@@ -241,9 +242,20 @@ def main():
     parser.add_argument("--model", default="nvidia/LocateAnything-3B")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--max-edge", type=int, default=512)
+    parser.add_argument("--generation-mode", default="fast", choices=["fast", "slow", "hybrid"])
+    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--max-new-tokens", type=int, default=512)
     args = parser.parse_args()
 
-    _LA_CONFIG.update(model_path=args.model, device=args.device, max_edge=args.max_edge)
+    global _LA_CONFIG
+    _LA_CONFIG = LocateConfig(
+        model_path=args.model,
+        device=args.device,
+        max_edge=args.max_edge,
+        generation_mode=args.generation_mode,
+        temperature=args.temperature,
+        max_new_tokens=args.max_new_tokens,
+    )
 
     # 后台预加载模型
     threading.Thread(target=get_model, daemon=True).start()

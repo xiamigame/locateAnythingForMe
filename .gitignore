@@ -40,3 +40,4 @@ checkpoints/
 
 # 环境变量（含本地绝对路径）
 .env
+output/

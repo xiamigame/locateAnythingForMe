@@ -1,30 +1,29 @@
 """
-全局配置
+全局配置 — 单例 LocateConfig 贯穿所有层级
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, asdict
 from typing import Optional
 
 
 @dataclass
 class LocateConfig:
-    """locateAnythingForMe 配置"""
+    """locateAnythingForMe 统一配置（模型 + 检测 + 生成）"""
 
     # 模型
     model_path: str = "nvidia/LocateAnything-3B"
     device: str = "cuda"
-    torch_dtype: str = "float16"  # bfloat16 / float16 / float32（RTX 3080 10G 用 float16）
+    torch_dtype: str = "float16"
 
-    # 图像缩放策略
-    max_edge: int = 512        # 最长边缩放到此值（512=RTX3080安全, 768=较快, 1024=需大显存）
-    min_edge: Optional[int] = None  # 最短边最小值（None=不限制）
+    # 图像缩放
+    max_edge: int = 512
+    min_edge: Optional[int] = None
 
     # 生成参数
-    temperature: float = 0.7
-    top_p: float = 0.9
+    generation_mode: str = "fast"  # "fast" | "slow" | "hybrid"
+    temperature: float = 0.0       # 0=贪心解码（最快）
+    max_new_tokens: int = 512
+    top_p: float = 1.0
     top_k: int = 0
-    max_new_tokens: int = 2048
-    repetition_penalty: float = 1.1
-    generation_mode: str = "hybrid"  # "fast" | "slow" | "hybrid"
 
     # 批处理
     use_batch_runtime: bool = False
@@ -32,6 +31,19 @@ class LocateConfig:
     vision_attn: str = "auto"
     scheduler: str = "pipeline"
     group_size: int = 0
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def to_detect_dict(self) -> dict:
+        """提取生成参数，传给模型 predict()"""
+        return {
+            "generation_mode": self.generation_mode,
+            "temperature": self.temperature,
+            "max_new_tokens": self.max_new_tokens,
+            "top_p": self.top_p,
+            "top_k": self.top_k,
+        }
 
 
 _default_config: Optional[LocateConfig] = None

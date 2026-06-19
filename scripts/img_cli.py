@@ -28,9 +28,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import locate_anything  # noqa: F401  环境初始化在 __init__.py 里
 
 import argparse
+import logging
 import os
 
 from locate_anything import LocateAnythingForMe, LocateConfig
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                    datefmt="%H:%M:%S")
 
 
 def main():
@@ -54,6 +58,13 @@ def main():
                         help="推理设备 (cuda/cpu)")
     parser.add_argument("--max-edge", type=int, default=1024,
                         help="缩放最长边（512/768/1024，越小越快）")
+    parser.add_argument("--generation-mode", default="fast",
+                        choices=["fast", "slow", "hybrid"],
+                        help="生成模式（fast=MTP多token, slow=NTP逐token）")
+    parser.add_argument("--temperature", type=float, default=0.0,
+                        help="采样温度（0=贪心解码最快）")
+    parser.add_argument("--max-new-tokens", type=int, default=512,
+                        help="最大生成 token 数")
     parser.add_argument("--no-annotate", action="store_true",
                         help="不标注，只输出文本结果")
 
@@ -67,20 +78,20 @@ def main():
         model_path=args.model,
         device=args.device,
         max_edge=args.max_edge,
+        generation_mode=args.generation_mode,
+        temperature=args.temperature,
+        max_new_tokens=args.max_new_tokens,
     )
 
     print(f"模型:   {config.model_path}")
     print(f"设备:   {config.device}")
     print(f"缩放:   max_edge={config.max_edge}")
+    print(f"生成:   mode={config.generation_mode} temp={config.temperature}")
     print(f"图像:   {args.image}")
     print(f"模式:   {args.mode}")
     print("-" * 50)
 
-    la = LocateAnythingForMe(
-        model_path=args.model,
-        device=args.device,
-        max_edge=args.max_edge,
-    )
+    la = LocateAnythingForMe(config=config)
 
     result = None
 

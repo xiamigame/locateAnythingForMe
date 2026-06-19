@@ -6,14 +6,18 @@ LocateAnythingForMe —— 内部封装工具
 - 坐标自动映射回原图尺寸
 - 检测 + 标注一体化
 """
+import logging
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Optional, Union
 
 import torch
 from PIL import Image, ImageDraw, ImageFont
+
+_log = logging.getLogger("tool")
 
 # ── 导入官方 worker ────────────────────────────────
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -57,6 +61,8 @@ class LocateAnythingForMe(LocateAnythingWorker):
         dtype=torch.bfloat16,
         max_edge: int = 1024,
         min_edge: Optional[int] = None,
+        *,
+        config: Optional["LocateConfig"] = None,
         **worker_kwargs,
     ):
         """
@@ -66,10 +72,22 @@ class LocateAnythingForMe(LocateAnythingWorker):
             dtype: 模型数据类型（bfloat16 推荐）。
             max_edge: 缩放后图像的最长边像素数（1024 适合 10GB 显存，512 更快）。
             min_edge: 缩放后最短边的最小值（可选，避免过小的图被放大）。
+            config: LocateConfig 实例（优先于单独的参数）。
             **worker_kwargs: 传给 LocateAnythingWorker 的额外参数。
         """
-        self.max_edge = max_edge
-        self.min_edge = min_edge
+        from .config import LocateConfig as _LocateConfig
+
+        if config is not None:
+            self.config = config
+            self.max_edge = config.max_edge
+            self.min_edge = config.min_edge
+        else:
+            self.config = _LocateConfig(
+                max_edge=max_edge,
+                min_edge=min_edge,
+            )
+            self.max_edge = max_edge
+            self.min_edge = min_edge
 
         super().__init__(
             model_path=model_path,
@@ -99,8 +117,10 @@ class LocateAnythingForMe(LocateAnythingWorker):
         longest = max(orig_w, orig_h)
 
         if longest <= self.max_edge:
+            _log.info("[tool] resize skip: %dx%d ≤ %d", orig_w, orig_h, self.max_edge)
             return image, 1.0, (orig_w, orig_h)
 
+        t0 = time.time()
         scale = self.max_edge / longest
         new_w = int(orig_w * scale)
         new_h = int(orig_h * scale)
@@ -113,6 +133,8 @@ class LocateAnythingForMe(LocateAnythingWorker):
 
         resized = image.resize((new_w, new_h), Image.LANCZOS)
         scale_factor = 1.0 / scale  # 原图 / 缩放图 的倍率
+        _log.info("[tool] resize: %dx%d → %dx%d | %.0fms",
+                   orig_w, orig_h, new_w, new_h, (time.time() - t0) * 1000)
         return resized, scale_factor, (orig_w, orig_h)
 
     # ── 坐标映射（输出坐标 ∈ [0, 1000]）────────────────────
@@ -182,8 +204,13 @@ class LocateAnythingForMe(LocateAnythingWorker):
         img = self._load(image)
         img_small, scale, (orig_w, orig_h) = self._smart_resize(img)
 
-        raw = super().detect(img_small, categories, **kwargs)
+        t0 = time.time()
+        raw = super().detect(img_small, categories, **{**self.config.to_detect_dict(), **kwargs})
+        infer_ms = (time.time() - t0) * 1000
+
         boxes = self.parse_boxes_scaled(raw["answer"], orig_w, orig_h)
+        _log.info("[tool] detect | %.0fms | %d boxes | %dx%d→%dx%d",
+                  infer_ms, len(boxes), orig_w, orig_h, *img_small.size)
 
         return {
             "answer": raw["answer"],
@@ -203,8 +230,13 @@ class LocateAnythingForMe(LocateAnythingWorker):
         img = self._load(image)
         img_small, scale, (orig_w, orig_h) = self._smart_resize(img)
 
-        raw = super().ground_multi(img_small, phrase, **kwargs)
+        t0 = time.time()
+        raw = super().ground_multi(img_small, phrase, **{**self.config.to_detect_dict(), **kwargs})
+        infer_ms = (time.time() - t0) * 1000
+
         boxes = self.parse_boxes_scaled(raw["answer"], orig_w, orig_h)
+        _log.info("[tool] ground_multi | %.0fms | %d boxes | %dx%d→%dx%d",
+                  infer_ms, len(boxes), orig_w, orig_h, *img_small.size)
 
         return {
             "answer": raw["answer"],
@@ -224,8 +256,13 @@ class LocateAnythingForMe(LocateAnythingWorker):
         img = self._load(image)
         img_small, scale, (orig_w, orig_h) = self._smart_resize(img)
 
-        raw = super().ground_single(img_small, phrase, **kwargs)
+        t0 = time.time()
+        raw = super().ground_single(img_small, phrase, **{**self.config.to_detect_dict(), **kwargs})
+        infer_ms = (time.time() - t0) * 1000
+
         boxes = self.parse_boxes_scaled(raw["answer"], orig_w, orig_h)
+        _log.info("[tool] ground_single | %.0fms | %d boxes | %dx%d→%dx%d",
+                  infer_ms, len(boxes), orig_w, orig_h, *img_small.size)
 
         return {
             "answer": raw["answer"],
@@ -244,8 +281,13 @@ class LocateAnythingForMe(LocateAnythingWorker):
         img = self._load(image)
         img_small, scale, (orig_w, orig_h) = self._smart_resize(img)
 
-        raw = super().detect_text(img_small, **kwargs)
+        t0 = time.time()
+        raw = super().detect_text(img_small, **{**self.config.to_detect_dict(), **kwargs})
+        infer_ms = (time.time() - t0) * 1000
+
         boxes = self.parse_boxes_scaled(raw["answer"], orig_w, orig_h)
+        _log.info("[tool] detect_text | %.0fms | %d boxes | %dx%d→%dx%d",
+                  infer_ms, len(boxes), orig_w, orig_h, *img_small.size)
 
         return {
             "answer": raw["answer"],
@@ -266,7 +308,9 @@ class LocateAnythingForMe(LocateAnythingWorker):
         img = self._load(image)
         img_small, scale, (orig_w, orig_h) = self._smart_resize(img)
 
-        raw = super().ground_gui(img_small, phrase, output_type=output_type, **kwargs)
+        t0 = time.time()
+        raw = super().ground_gui(img_small, phrase, output_type=output_type, **{**self.config.to_detect_dict(), **kwargs})
+        infer_ms = (time.time() - t0) * 1000
 
         result = {
             "answer": raw["answer"],
@@ -277,8 +321,13 @@ class LocateAnythingForMe(LocateAnythingWorker):
 
         if output_type == "point":
             result["points"] = self.parse_points_scaled(raw["answer"], orig_w, orig_h)
+            items = len(result["points"])
         else:
             result["boxes"] = self.parse_boxes_scaled(raw["answer"], orig_w, orig_h)
+            items = len(result["boxes"])
+
+        _log.info("[tool] ground_gui | %.0fms | %d items | %dx%d→%dx%d",
+                  infer_ms, items, orig_w, orig_h, *img_small.size)
 
         return result
 
@@ -292,8 +341,13 @@ class LocateAnythingForMe(LocateAnythingWorker):
         img = self._load(image)
         img_small, scale, (orig_w, orig_h) = self._smart_resize(img)
 
-        raw = super().point(img_small, phrase, **kwargs)
+        t0 = time.time()
+        raw = super().point(img_small, phrase, **{**self.config.to_detect_dict(), **kwargs})
+        infer_ms = (time.time() - t0) * 1000
+
         points = self.parse_points_scaled(raw["answer"], orig_w, orig_h)
+        _log.info("[tool] point | %.0fms | %d points | %dx%d→%dx%d",
+                  infer_ms, len(points), orig_w, orig_h, *img_small.size)
 
         return {
             "answer": raw["answer"],

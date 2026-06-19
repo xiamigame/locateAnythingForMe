@@ -28,10 +28,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import locate_anything  # noqa: F401  环境初始化在 __init__.py 里
 
 import argparse
+import logging
 import os
 import signal
 
 from locate_anything import LocateAnythingForMe, VideoLocator, VideoRenderer, LocateConfig
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+                    datefmt="%H:%M:%S")
 
 
 def main():
@@ -85,6 +89,15 @@ def main():
     parser.add_argument("--smooth", action="store_true",
                         help="异步平滑模式：后台间隔检测，全帧率输出（需 --display 实时查看）")
 
+    # 生成参数
+    parser.add_argument("--generation-mode", default="fast",
+                        choices=["fast", "slow", "hybrid"],
+                        help="生成模式（fast=MTP多token, slow=NTP逐token, hybrid=混合）")
+    parser.add_argument("--temperature", type=float, default=0.0,
+                        help="采样温度（0=贪心解码最快）")
+    parser.add_argument("--max-new-tokens", type=int, default=512,
+                        help="最大生成 token 数")
+
     args = parser.parse_args()
 
     if args.smooth and args.no_annotate:
@@ -98,11 +111,15 @@ def main():
     print(f"模式:   {args.mode}")
     print("-" * 50)
 
-    la = LocateAnythingForMe(
+    config = LocateConfig(
         model_path=args.model,
         device=args.device,
         max_edge=args.max_edge,
+        generation_mode=args.generation_mode,
+        temperature=args.temperature,
+        max_new_tokens=args.max_new_tokens,
     )
+    la = LocateAnythingForMe(config=config)
     vl = VideoLocator(la, frame_interval=args.frame_interval)
 
     # ── 确定输入源 ──────────────────────────────────
