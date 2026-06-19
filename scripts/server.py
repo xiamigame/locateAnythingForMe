@@ -241,6 +241,8 @@ async def update_config(data: dict):
     updatable = {"max_edge", "min_edge", "generation_mode", "temperature", "max_new_tokens", "top_p", "top_k"}
     for k, v in data.items():
         if k in updatable and hasattr(la.config, k):
+            if k == "min_edge" and v == 0:
+                v = None
             setattr(la.config, k, v)
             log.info("config updated: %s = %s", k, v)
     return la.config.to_dict()
