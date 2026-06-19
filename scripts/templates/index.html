@@ -45,8 +45,6 @@ button.stop { background: #c0392b; color: #fff; }
     <label>检测间隔 (每 N 帧)<input id="cam-interval" type="range" value="4" min="1" max="30"></label>
     <span id="cam-interval-val" style="font-size:11px;color:#888">4</span>
     <label>检测类别<input id="cam-cats" value="person,face,chair"></label>
-    <label>缩放最长边<input id="cam-edge" type="range" value="512" min="256" max="1024" step="128"></label>
-    <span id="cam-edge-val" style="font-size:11px;color:#888">512</span>
     <button id="cam-start">▶ 开始</button>
     <button id="cam-stop" class="stop" style="display:none">⏹ 停止</button>
   </div>
@@ -57,8 +55,6 @@ button.stop { background: #c0392b; color: #fff; }
     <label>检测间隔<input id="vid-interval" type="range" value="4" min="1" max="30"></label>
     <span id="vid-interval-val" style="font-size:11px;color:#888">4</span>
     <label>检测类别<input id="vid-cats" value="person,car"></label>
-    <label>缩放最长边<input id="vid-edge" type="range" value="512" min="256" max="1024" step="128"></label>
-    <span id="vid-edge-val" style="font-size:11px;color:#888">512</span>
     <button id="vid-start">▶ 处理</button>
     <progress id="vid-progress" style="width:100%;display:none"></progress>
   </div>
@@ -69,8 +65,6 @@ button.stop { background: #c0392b; color: #fff; }
     <label>检测间隔<input id="scr-interval" type="range" value="8" min="1" max="30"></label>
     <span id="scr-interval-val" style="font-size:11px;color:#888">8</span>
     <label>检测类别<input id="scr-cats" value="button,icon,text,image"></label>
-    <label>缩放最长边<input id="scr-edge" type="range" value="512" min="256" max="1024" step="128"></label>
-    <span id="scr-edge-val" style="font-size:11px;color:#888">512</span>
     <button id="scr-start">▶ 开始</button>
     <button id="scr-stop" class="stop" style="display:none">⏹ 停止</button>
   </div>
@@ -86,8 +80,6 @@ button.stop { background: #c0392b; color: #fff; }
       <option value="point">指向定位</option>
     </select></label>
     <label>类别/描述<input id="img-cats" value="person,face"></label>
-    <label>缩放<input id="img-edge" type="range" value="512" min="256" max="1024" step="128"></label>
-    <span id="img-edge-val" style="font-size:11px;color:#888">512</span>
     <button id="img-start">▶ 检测</button>
   </div>
 
@@ -155,11 +147,9 @@ $$(".tab").forEach(t => t.onclick = () => {
 });
 
 // ── Range 显示 ──
-["cam","vid","scr","img"].forEach(p => {
+["cam","vid","scr"].forEach(p => {
   const r1 = $(`#${p}-interval`), v1 = $(`#${p}-interval-val`);
   if (r1) r1.oninput = () => v1.textContent = r1.value;
-  const r2 = $(`#${p}-edge`), v2 = $(`#${p}-edge-val`);
-  if (r2) r2.oninput = () => v2.textContent = r2.value;
 });
 
 // ── 流式 helper (MJPEG) ──
@@ -179,8 +169,7 @@ $("#cam-start").onclick = () => {
   const id = $("#cam-id").value;
   const interval = $("#cam-interval").value;
   const cats = encodeURIComponent($("#cam-cats").value);
-  const edge = $("#cam-edge").value;
-  const url = `/api/stream/camera?camera=${id}&interval=${interval}&categories=${cats}&max_edge=${edge}`;
+  const url = `/api/stream/camera?camera=${id}&interval=${interval}&categories=${cats}`;
   startStream(url);
   $("#cam-start").style.display = "none";
   $("#cam-stop").style.display = "block";
@@ -192,8 +181,7 @@ $("#scr-start").onclick = () => {
   const mon = $("#scr-monitor").value;
   const interval = $("#scr-interval").value;
   const cats = encodeURIComponent($("#scr-cats").value);
-  const edge = $("#scr-edge").value;
-  const url = `/api/stream/screen?monitor=${mon}&interval=${interval}&categories=${cats}&max_edge=${edge}`;
+  const url = `/api/stream/screen?monitor=${mon}&interval=${interval}&categories=${cats}`;
   startStream(url);
   $("#scr-start").style.display = "none";
   $("#scr-stop").style.display = "block";
@@ -208,7 +196,6 @@ $("#img-start").onclick = async () => {
   form.append("image", file);
   form.append("mode", $("#img-mode").value);
   form.append("categories", $("#img-cats").value);
-  form.append("max_edge", $("#img-edge").value);
   log("检测中...");
   const resp = await fetch("/api/detect/image", { method: "POST", body: form });
   const blob = await resp.blob();

@@ -17,6 +17,7 @@ import threading
 import time
 import zipfile
 from pathlib import Path
+from typing import Optional
 
 _PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT))
@@ -61,10 +62,11 @@ def mjpeg_stream(gen):
         yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.getvalue() + b"\r\n")
 
 
-def camera_stream_generator(camera_id, detect_interval, categories_str, max_edge):
+def camera_stream_generator(camera_id, detect_interval, categories_str, max_edge=None):
     """摄像头 MJPEG 生成器。"""
     la = get_model()
-    la.config.max_edge = int(max_edge)
+    if max_edge is not None:
+        la.config.max_edge = int(max_edge)
     categories = [c.strip() for c in categories_str.split(",") if c.strip()] or ["person"]
     vl = VideoLocator(la, frame_interval=int(detect_interval))
     vr = VideoRenderer(vl)
@@ -85,10 +87,11 @@ def camera_stream_generator(camera_id, detect_interval, categories_str, max_edge
         log.info("Camera stream stopped (camera=%d)", camera_id)
 
 
-def screen_stream_generator(monitor, detect_interval, categories_str, max_edge):
+def screen_stream_generator(monitor, detect_interval, categories_str, max_edge=None):
     """屏幕 MJPEG 生成器。"""
     la = get_model()
-    la.max_edge = int(max_edge)
+    if max_edge is not None:
+        la.max_edge = int(max_edge)
     categories = [c.strip() for c in categories_str.split(",") if c.strip()] or ["button", "icon", "text"]
     vl = VideoLocator(la, frame_interval=int(detect_interval))
     vr = VideoRenderer(vl)
@@ -129,7 +132,7 @@ async def stream_camera(
     camera: int = Query(0),
     interval: int = Query(4),
     categories: str = Query("person,face,chair"),
-    max_edge: int = Query(512),
+    max_edge: Optional[int] = Query(None),
 ):
     gen = camera_stream_generator(camera, interval, categories, max_edge)
     return StreamingResponse(
@@ -143,7 +146,7 @@ async def stream_screen(
     monitor: int = Query(1),
     interval: int = Query(8),
     categories: str = Query("button,icon,text"),
-    max_edge: int = Query(512),
+    max_edge: Optional[int] = Query(None),
 ):
     gen = screen_stream_generator(monitor, interval, categories, max_edge)
     return StreamingResponse(
@@ -158,10 +161,11 @@ async def detect_image(
     mode: str = Form("detect"),
     categories: str = Form("person,face"),
     phrase: str = Form(""),
-    max_edge: int = Form(512),
+    max_edge: Optional[int] = Form(None),
 ):
     la = get_model()
-    la.max_edge = max_edge
+    if max_edge is not None:
+        la.max_edge = max_edge
 
     img = Image.open(io.BytesIO(await image.read())).convert("RGB")
     cats = [c.strip() for c in categories.split(",") if c.strip()]
@@ -200,10 +204,11 @@ async def detect_video(
     video: UploadFile = File(...),
     interval: int = Form(4),
     categories: str = Form("person,car"),
-    max_edge: int = Form(512),
+    max_edge: Optional[int] = Form(None),
 ):
     la = get_model()
-    la.max_edge = max_edge
+    if max_edge is not None:
+        la.max_edge = max_edge
     cats = [c.strip() for c in categories.split(",") if c.strip()] or ["person"]
 
     # 保存上传视频到临时文件
